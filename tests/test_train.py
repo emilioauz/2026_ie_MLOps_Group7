@@ -120,7 +120,6 @@ def test_unit_single_class_raises(data, recipe):
         train.train_model(X, pd.Series([1] * 20), recipe, "classification")
 
 
-@pytest.mark.skip(reason="Awaiting features in dev")
 def test_integration_features_recipe_trains_and_predicts():
     from src import features  # pylint: disable=import-outside-toplevel
 
