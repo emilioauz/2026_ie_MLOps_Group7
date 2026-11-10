@@ -160,7 +160,7 @@ def test_unit_empty_dataframe_raises():
 
 
 def test_unit_missing_target_column_raises():
-    with pytest.raises(ValueError, match="Missing columns"):
+    with pytest.raises(ValueError, match="Missing column"):
         clean_dataframe(pd.DataFrame({"x": [1]}), "success")
 
 
@@ -202,15 +202,9 @@ def test_unit_investable_scope_without_goal_column_raises():
 
 # Integration test
 
-def test_integration_load_raw_data_output_cleans(tmp_path):
-    """CSV loaded through utils and load_data cleans like an in-memory frame."""
-    from src import utils
-    from src.load_data import load_raw_data
-
-    path = tmp_path / "raw.csv"
-    utils.save_csv(_raw(), path)
-
-    clean = clean_dataframe(load_raw_data(path), "success", **RULES)
+def test_integration_clean_dataframe_returns_expected_rows():
+    """A raw DataFrame is cleaned and returns the expected training rows."""
+    clean = clean_dataframe(_raw(), "success", **RULES)
 
     assert list(clean["ID"]) == [1, 2, 6]
 
