@@ -1,154 +1,155 @@
-
 """
 validate.py  [Step 3: VALIDATE, the data quality gate]
 ======================================================
-Purpose   Check schema, types and business rules BEFORE expensive steps run
-Input     Clean DataFrame + the rules (required columns, allowed target values, ranges)
-Output    True if valid, otherwise a clear error that stops the pipeline
-Called by main.py (training) and api.py (stage 3, every live request)
-Next      the split in main.py
+Check the cleaned data before any expensive step runs. Validate, never fix: every failed
+rule stops the pipeline with a clear ValueError that names the rule and the rows affected.
 
-Why it matters
-- Garbage in, garbage out: stop bad data at the door, not deep inside training
-- Validate, never fix. Fixing belongs in clean_data.py
-- Rules live in config, so they are versioned and easy to change
+Input     Clean DataFrame + the rules (column names and ranges come from config.yaml via main.py)
+Output    True when every rule passes
+Called by main.py (training data and inference data)
+Next      the train/validation/test split in main.py
+
+Rules (each one is skipped when its parameter is None)
+    required_columns   every listed column is present
+    target_column      target present, no missing values, only 0/1 (training data)
+    id_column          no missing and no duplicate IDs
+    positive_columns   numeric and strictly greater than 0
+    duration_range     values of duration_column inside [low, high]
+    launch_year_range  values of year_column inside [low, high]
+    forbidden_columns  none of these columns is present (leakage)
 
 Tests     tests/test_validate.py
 """
 
+from __future__ import annotations
+
+import logging
+from typing import Sequence
+
 import pandas as pd
 
-
-# Required input columns from config.yaml.
-REQUIRED_COLUMNS = [
-    "ID",
-    "name",
-    "category",
-    "main_category",
-    "country",
-    "goal_usd",
-    "duration_days",
-    "launch_month",
-    "launch_year",
-    "name_words",
-]
-
-ID_COLUMN = "ID"
-TARGET_COLUMN = "success"
+logger = logging.getLogger(__name__)
 
 
-def validate_dataframe(
-    df,
-    *,
-    duration_range=None,
-    launch_year_range=None,
-    forbidden_columns=None,
-):
-    """
-    Validate the structure and business rules of a campaign DataFrame.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame to validate.
-    duration_range : tuple, optional
-        Minimum and maximum allowed campaign duration.
-    launch_year_range : tuple, optional
-        Minimum and maximum allowed launch year.
-    forbidden_columns : list, optional
-        Columns that must not appear, such as target leakage columns.
-
-    Returns
-    -------
-    bool
-        True if all applicable validation checks pass.
-
-    Raises
-    ------
-    TypeError
-        If the input is not a pandas DataFrame.
-    ValueError
-        If one or more validation checks fail.
-    """
+def _check_frame(df: pd.DataFrame, required_columns: Sequence[str]) -> None:
+    """Raise if ``df`` is not a non-empty DataFrame holding every required column."""
     if not isinstance(df, pd.DataFrame):
-        raise TypeError("Input must be a pandas DataFrame.")
-
+        raise TypeError(f"validate_dataframe expects a pandas DataFrame, got {type(df).__name__}")
     if df.empty:
-        raise ValueError("DataFrame must not be empty.")
+        raise ValueError("DataFrame is empty: nothing to validate")
+    missing = [column for column in required_columns if column not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
 
-    # 1. Check that all required input columns exist.
-    missing_columns = [
-        column for column in REQUIRED_COLUMNS
-        if column not in df.columns
-    ]
-    if missing_columns:
-        raise ValueError(
-            f"Missing required columns: {missing_columns}"
-        )
 
-    # 2. Check campaign IDs.
-    if df[ID_COLUMN].isna().any():
-        raise ValueError("ID column contains missing values.")
+def _check_target(df: pd.DataFrame, target_column: str) -> None:
+    """Raise if the target is absent, has missing values, or holds values other than 0/1."""
+    if target_column not in df.columns:
+        raise ValueError(f"Target column '{target_column}' is missing")
+    n_missing = int(df[target_column].isna().sum())
+    if n_missing:
+        raise ValueError(f"Target column '{target_column}' has {n_missing} missing value(s)")
+    if not df[target_column].isin([0, 1]).all():
+        raise ValueError(f"Target column '{target_column}' must hold only 0 and 1")
 
-    if df[ID_COLUMN].duplicated().any():
-        raise ValueError("Duplicate campaign IDs found in ID column.")
 
-    # 3. Check numeric columns and missing values.
-    numeric_columns = [
-        "goal_usd",
-        "duration_days",
-        "launch_year",
-    ]
+def _check_ids(df: pd.DataFrame, id_column: str) -> None:
+    """Raise if the ID column is absent, has missing values or repeats an ID."""
+    if id_column not in df.columns:
+        raise ValueError(f"ID column '{id_column}' is missing")
+    if df[id_column].isna().any():
+        raise ValueError(f"ID column '{id_column}' has missing values")
+    duplicates = int(df[id_column].duplicated().sum())
+    if duplicates:
+        raise ValueError(f"ID column '{id_column}' has {duplicates} duplicate value(s)")
 
-    for column in numeric_columns:
+
+def _check_positive(df: pd.DataFrame, columns: Sequence[str]) -> None:
+    """Raise if a listed column is not numeric or has a value <= 0 (missing is allowed)."""
+    for column in columns:
+        if column not in df.columns:
+            raise ValueError(f"Column '{column}' is missing, cannot check it is positive")
         if not pd.api.types.is_numeric_dtype(df[column]):
-            raise ValueError(f"{column} must contain numeric values.")
+            raise ValueError(f"Column '{column}' must be numeric")
+        bad = int((df[column] <= 0).sum())
+        if bad:
+            raise ValueError(f"{bad} row(s) have {column} <= 0")
 
-        if df[column].isna().any():
-            raise ValueError(f"{column} contains missing values.")
 
-    # 4. Check that the investment goal is positive.
-    if (df["goal_usd"] <= 0).any():
-        raise ValueError("goal_usd must be greater than 0.")
+def _check_range(
+    df: pd.DataFrame, column: str | None, value_range: Sequence[float], rule: str
+) -> None:
+    """Raise if values of ``column`` fall outside ``value_range`` (missing values are allowed)."""
+    if column is None:
+        raise ValueError(
+            f"{rule} is set but its column name is not: pass the matching *_column argument"
+        )
+    if column not in df.columns:
+        raise ValueError(f"Column '{column}' is missing, cannot check {rule}")
+    if len(value_range) != 2:
+        raise ValueError(f"{rule} must be [low, high], got {list(value_range)}")
+    low, high = value_range
+    values = df[column].dropna()
+    outside = int((~values.between(low, high)).sum())
+    if outside:
+        raise ValueError(f"{outside} row(s) have {column} outside [{low}, {high}]")
 
-    # 5. Check campaign duration when a range is provided.
+
+def _check_forbidden(df: pd.DataFrame, forbidden_columns: Sequence[str]) -> None:
+    """Raise if any leakage column is still present."""
+    present = [column for column in forbidden_columns if column in df.columns]
+    if present:
+        raise ValueError(f"Leakage columns must not be present: {present}")
+
+
+# Signature fixed by the course contract; the keyword-only rules are the team's extras.
+# pylint: disable-next=too-many-arguments
+def validate_dataframe(
+    df: pd.DataFrame,
+    required_columns: list[str],
+    target_column: str | None = None,
+    *,
+    duration_range: Sequence[float] | None = None,
+    launch_year_range: Sequence[float] | None = None,
+    forbidden_columns: Sequence[str] | None = None,
+    id_column: str | None = None,
+    positive_columns: Sequence[str] | None = None,
+    duration_column: str | None = None,
+    year_column: str | None = None,
+) -> bool:
+    """Check the data against every rule that is switched on; never change it.
+
+    Args:
+        df: Cleaned data.
+        required_columns: Columns that must be present.
+        target_column: Target name for training data; None for inference data.
+        duration_range: ``[low, high]`` for ``duration_column``; None skips the rule.
+        launch_year_range: ``[low, high]`` for ``year_column``; None skips the rule.
+        forbidden_columns: Leakage columns that must be absent; None skips the rule.
+        id_column: Column that must be unique and complete; None skips the rule.
+        positive_columns: Columns that must be numeric and > 0; None skips the rule.
+        duration_column: Column checked by ``duration_range``.
+        year_column: Column checked by ``launch_year_range``.
+
+    Returns:
+        True when every active rule passes.
+
+    Raises:
+        TypeError: If ``df`` is not a DataFrame.
+        ValueError: On the first rule that fails, naming the rule and the rows affected.
+    """
+    _check_frame(df, required_columns)
+    if target_column is not None:
+        _check_target(df, target_column)
+    if id_column is not None:
+        _check_ids(df, id_column)
+    if positive_columns:
+        _check_positive(df, positive_columns)
     if duration_range is not None:
-        minimum, maximum = duration_range
-        if not df["duration_days"].between(
-            minimum, maximum
-        ).all():
-            raise ValueError(
-                f"duration_days must be between {minimum} and {maximum}."
-            )
-
-    # 6. Check launch year when a range is provided.
+        _check_range(df, duration_column, duration_range, "duration_range")
     if launch_year_range is not None:
-        minimum, maximum = launch_year_range
-        if not df["launch_year"].between(
-            minimum, maximum
-        ).all():
-            raise ValueError(
-                f"launch_year must be between {minimum} and {maximum}."
-            )
-
-    # 7. Check that forbidden (leakage) columns are absent.
-    if forbidden_columns is not None:
-        present_forbidden = [
-            column for column in forbidden_columns
-            if column in df.columns
-        ]
-        if present_forbidden:
-            raise ValueError(
-                f"Forbidden leakage columns found: {present_forbidden}"
-            )
-
-    # 8. Validate the target only when it is supplied.
-    # This allows the same validator to accept inference data.
-    if TARGET_COLUMN in df.columns:
-        if df[TARGET_COLUMN].isna().any():
-            raise ValueError("success contains missing values.")
-
-        if not df[TARGET_COLUMN].isin([0, 1]).all():
-            raise ValueError("success must contain only 0 and 1.")
-
+        _check_range(df, year_column, launch_year_range, "launch_year_range")
+    if forbidden_columns:
+        _check_forbidden(df, forbidden_columns)
+    logger.info("Validation passed: %d rows x %d columns", len(df), df.shape[1])
     return True
