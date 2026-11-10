@@ -1,62 +1,62 @@
-# MLOps Project Skeleton (reference only)
+# Kickstarter Launch-Day Success Predictor (Group 7)
 
-This repo is a **map, not a codebase**. Every file is a placeholder: no code, only a short note on
-what the file does, where it sits in the pipeline and which files it talks to.
+## 1. Business case
 
-Create the same folders and files in **your own** project repo, then write the code for **your** use case.
+**Decision.** An early-stage investor wants to know, on launch day, which Kickstarter
+campaigns will reach their funding goal. The investor contacts the most promising
+creators first, so the model's job is to rank new campaigns by their chance of success.
 
-## Stages = branches
+**Data.** Kaggle *Kickstarter Projects* (`ks-projects-201801.csv`).
 
-| Branch | Stage | Sessions | What it adds |
-|---|---|---|---|
-| `main` (you are here) | 1. Kickoff | 1 to 3 | Folder structure, business case, one placeholder per pipeline step |
-| `stage-2-modular` | 2. Modular code | 4 to 9 | Tests, style and test settings, first CI (Continuous Integration) workflow |
-| `stage-3-cicd` | 3. CI/CD | 10 to 14 | Config loader, logging, experiment tracking, API, Docker, deployment |
+**Scope.** Finished campaigns only (state `successful` or `failed`), launched from 2009
+onwards, with a goal of at least 10,000 USD. Smaller campaigns are not worth an
+investor's time.
 
-Tip: on GitHub, open **Compare** (`main...stage-2-modular`) to see exactly what each stage adds.
+**Target.** `success` = 1 if the campaign was funded (`successful`), 0 if it `failed`.
 
-## The pipeline at a glance
+**Inputs.** Only what is known at launch: goal, duration, launch month and year, number
+of words in the name, category, main category and country. Pledged amounts and backer
+counts (`pledged`, `backers`, `usd pledged`, `usd_pledged_real`) are dropped because they
+are only known after the campaign ends and would leak the outcome.
 
-```text
-                           main.py  (orchestrator, one command)
-                              |
- data/raw/ -> load_data -> clean_data -> validate -> split -> features -> train -> evaluate
-                                                (train/val/test) (recipe)   (fit)   (val split)
-                                                                              |
-                     reports/predictions.csv <- infer <- models/model.joblib (save)
-```
+**Model.** Random forest classifier, chosen in the notebook.
 
-## Stage 1 structure
+**Success metric and gate.**
 
-```text
-.
-├── README.md                 # business case, success metrics, how to run
-├── config.yaml               # non-secret settings (paths, target, split sizes)
-├── environment.yml           # dependencies (conda)
-├── .env.example              # names of secrets, never real values
-├── .gitignore                # keeps data, secrets and generated files out of Git
-├── LICENSE
-├── .github/
-│   └── pull_request_template.md
-├── notebooks/                # the "lab": exploration only
-├── src/                      # the "factory": one job per module
-│   ├── load_data.py          # 1. read raw data
-│   ├── clean_data.py         # 2. stateless cleaning
-│   ├── validate.py           # 3. data quality gate
-│   ├── features.py           # 4. unfitted feature recipe
-│   ├── train.py              # 5. fit the pipeline
-│   ├── evaluate.py           # 6. metrics on unseen data
-│   ├── infer.py              # 7. predictions on new data
-│   ├── utils.py              # shared read and write helpers
-│   └── main.py               # 0. orchestrator: python -m src.main
-├── data/  raw/ processed/ inference/
-├── models/                   # saved model (generated)
-├── reports/                  # predictions, plots (generated)
-└── tests/                    # automated tests (stage 2)
-```
+| Item | Value |
+|---|---|
+| Metric | ROC AUC (`roc_auc`) on the validation split |
+| Direction | Higher is better |
+| Gate | Met when ROC AUC >= 0.70 |
+| Notebook result | 0.737 (gate met) |
 
-## How to use this skeleton
+ROC AUC measures how well the model ranks successful campaigns above failed ones,
+which is exactly what a shortlist needs.
 
-1. Open a file and read its note
-2. Create the equivalent file in your repo
-3. Write your own code: the note describes the job, not the solution
+**Business result.** Ranking campaigns by predicted probability and keeping the top 10%
+(`shortlist_share: 0.10`) gives a shortlist that succeeds 58.6% of the time, against
+28.4% for random picks: about 2x more hits for the same outreach effort.
+
+**How the output is used.** For each new campaign the pipeline returns a probability of
+success and a 0/1 prediction (cutoff 0.29, F1-optimal on validation). The investor
+works down the list from the highest probability.
+
+## 2. Install
+
+_To be written by B._
+
+## 3. Run
+
+_To be written by B._
+
+## 4. Test
+
+_To be written by B._
+
+## 5. Structure
+
+_To be written by B._
+
+## 6. Owners
+
+_To be filled in._
