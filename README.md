@@ -43,20 +43,104 @@ works down the list from the highest probability.
 
 ## 2. Install
 
-_To be written by B._
+Requirements: [Miniconda](https://docs.anaconda.com/miniconda/) and Git. Everything else, including Python 3.12, is
+installed from `environment.yml`.
+
+```bash
+git clone https://github.com/emilioauz/2026_ie_MLOps_Group7.git
+cd 2026_ie_MLOps_Group7
+conda env create -f environment.yml
+conda activate group7-mlops
+```
+
+After a teammate changes `environment.yml`, run `conda env update -f environment.yml --prune`.
+
+**Data (not in Git).** Download *Kickstarter Projects* by kemical from
+[Kaggle](https://www.kaggle.com/datasets/kemical/kickstarter-projects), unzip it and put `ks-projects-201801.csv` in
+`data/raw/`. The older file in the same download, `ks-projects-201612.csv`, is not used.
+
+No secrets are needed at this stage. `.env.example` lists the names of any future ones; copy it to `.env`
+(git-ignored) to fill in values.
 
 ## 3. Run
 
-_To be written by B._
+From the repository root, with the environment active:
+
+```bash
+python -m src.main
+```
+
+One command runs every step in order: **load → clean → validate → split → features → train → evaluate → save →
+infer**.
+
+| Step | Module | What happens | Output |
+|---|---|---|---|
+| Load | `load_data.py` | Reads `data/raw/ks-projects-201801.csv` unchanged | in memory |
+| Clean | `clean_data.py` | Keeps successful and failed campaigns with a goal of at least 10,000 USD, builds the `success` target, drops columns only known after the campaign ends | `data/processed/clean.csv` |
+| Validate | `validate.py` | Checks columns, ranges and target; stops with a clear error on bad data | log |
+| Split | `main.py` | 60 / 20 / 20 train, validation and test, stratified, `random_state` 42 | in memory |
+| Features, train | `features.py`, `train.py` | Builds the preprocessing recipe and fits the random forest on the training split only | `models/model.joblib` |
+| Evaluate | `evaluate.py` | Scores the validation split and reports the quality gate, ROC AUC ≥ 0.70, as **MET** or **NOT MET** | `reports/metrics.json` |
+| Infer | `infer.py` | Scores new campaigns from `data/inference/new_campaigns.csv` | `reports/predictions.csv` |
+
+Every setting (paths, target, cleaning rules, split, model, gate) lives in `config.yaml`; `src/` holds no dataset
+names, columns or numbers. Each run logs to the terminal and to `logs/pipeline.log`. If a step fails, the run stops
+with the reason and exits with code 1.
 
 ## 4. Test
 
-_To be written by B._
+Run these from the repository root before every pull request. They are the checks used for grading.
+
+```bash
+pytest --cov=src --cov-branch --cov-report=term-missing                  # all pass, none skipped, >= 90 % branch coverage
+flake8 --isolated --max-line-length=120 --extend-ignore=E203 src tests  # prints nothing
+pylint src                                                               # 9.5 or more
+radon cc -s -a src                                                       # average A
+detect-secrets scan                                                      # "results": {}
+git ls-files data models logs .env                                       # prints nothing
+```
+
+Each module in `src/` has a matching `tests/test_<module>.py` with at least two unit tests (one function on tiny
+synthetic data), one integration test (two neighbouring modules together) and a test for every error the module can
+raise. `tests/test_main.py` runs the whole pipeline on about 100 synthetic rows. Tests never read the real CSV.
 
 ## 5. Structure
 
-_To be written by B._
+```text
+.
+├── README.md                 # business case, install, run, test, structure, owners
+├── TEAM_BRIEF.md             # one page of technical decisions
+├── AGENTS.md                 # build plan and rules for the team and AI assistants
+├── config.yaml               # every non-secret setting
+├── environment.yml           # Python 3.12 and every import
+├── pytest.ini  .flake8  .gitignore  .env.example
+├── .github/pull_request_template.md
+├── notebooks/
+│   └── Kickstarter_success_Group7.ipynb   # frozen: the analysis the pipeline reproduces
+├── src/
+│   ├── utils.py              # read/write CSV, save/load model, load config
+│   ├── load_data.py          # read the raw CSV unchanged
+│   ├── clean_data.py         # cleaning rules and the success target
+│   ├── validate.py           # data quality gate: checks, never fixes
+│   ├── features.py           # unfitted preprocessing recipe
+│   ├── train.py              # the only place that fits
+│   ├── evaluate.py           # metrics on the validation split
+│   ├── infer.py              # predictions on new campaigns
+│   └── main.py               # orchestrator: python -m src.main
+├── tests/                    # test_<module>.py for every module, plus test_main.py
+├── data/                     # raw/ processed/ inference/ (only README files in Git)
+└── models/  reports/  logs/  # created by the pipeline, not in Git
+```
 
 ## 6. Owners
 
-_To be filled in._
+| Owner | GitHub | Modules and files |
+|---|---|---|
+| Emilio (admin) | [emilioauz](https://github.com/emilioauz) | Team setup (`config.yaml`, `environment.yml`, `TEAM_BRIEF.md`, `AGENTS.md`, `pytest.ini`, `.flake8`), `main.py` |
+| Cedric | | `utils.py`, `load_data.py`, README sections 2–5 |
+| Diajeng | | `clean_data.py`, `validate.py` |
+| Arthur | [CaillouMalade](https://github.com/CaillouMalade) | Notebook, `features.py`, `train.py` |
+| Minghao | | README section 1 (business case), `evaluate.py`, `infer.py` |
+
+Each owner also owns the matching test files. All work goes through `feature/<module>` branches and reviewed pull
+requests into `dev`; `dev` merges into `main` once, for the release.
