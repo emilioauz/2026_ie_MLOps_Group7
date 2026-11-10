@@ -81,7 +81,7 @@ infer**.
 | Split | `main.py` | 60 / 20 / 20 train, validation and test, stratified, `random_state` 42 | in memory |
 | Features, train | `features.py`, `train.py` | Builds the preprocessing recipe and fits the random forest on the training split only | `models/model.joblib` |
 | Evaluate | `evaluate.py` | Scores the validation split and reports the quality gate, ROC AUC ≥ 0.70, as **MET** or **NOT MET** | `reports/metrics.json` |
-| Infer | `infer.py` | Scores new campaigns from `data/inference/new_campaigns.csv` | `reports/predictions.csv` |
+| Infer | `infer.py` | Scores new campaigns from `data/inference/new_campaigns.csv` (the held-out test split if that file is absent) | `reports/predictions.csv` |
 
 Every setting (paths, target, cleaning rules, split, model, gate) lives in `config.yaml`; `src/` holds no dataset
 names, columns or numbers. Each run logs to the terminal and to `logs/pipeline.log`. If a step fails, the run stops
