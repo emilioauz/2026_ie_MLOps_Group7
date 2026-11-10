@@ -43,3 +43,4 @@ models/**
 reports/**
 !reports/
 !reports/README.md
+logs/
