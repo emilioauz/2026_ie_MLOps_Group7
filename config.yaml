@@ -1,14 +1,66 @@
 # config.yaml  [Settings: single source of truth]
-# -------------------------------------------------------------------
-# Purpose   Every NON-SECRET setting the pipeline needs, in one place
-# Read by   main.py (stage 3: through src/config.py), later also api.py
-# Why       Change the target, features or split sizes without touching code
-# Never     Secrets (API keys, passwords). Those go in .env
-#
-# Typical sections
-#   paths     where raw data, model, inference data and predictions live
-#   problem   target column, problem type (classification or regression), ID column
-#   split     test size, validation size, random seed
-#
-# Stage 2: the same values live in a SETTINGS dictionary at the top of src/main.py
-# Stage 3: main.py reads this file instead, with the same key names
+# Every non-secret setting the pipeline needs. main.py reads it and passes values to modules as parameters.
+# Values from the frozen notebook's final-choices cell (4 Nov 2026: validation ROC AUC 0.737, gate met).
+# Changes go through the admin in a PR. Secrets never go here (they go in .env).
+
+paths:
+  raw_data: data/raw/ks-projects-201801.csv
+  clean_data: data/processed/clean.csv
+  inference_data: data/inference/new_campaigns.csv
+  model: models/model.joblib
+  predictions: reports/predictions.csv
+  metrics: reports/metrics.json
+  log_file: logs/pipeline.log
+
+logging:
+  level: INFO
+
+data:
+  id_column: ID
+  state_column: state
+  target_column: success
+  training_states: {successful: 1, failed: 0}
+  problem_type: classification
+
+cleaning:
+  first_valid_year: 2009
+  broken_country: 'N,0"'
+  min_goal_usd: 1.0
+  min_investable_goal_usd: 10000
+  leakage_columns: [pledged, backers, usd pledged, usd_pledged_real]
+  columns: {launched: launched, deadline: deadline, goal: usd_goal_real, name: name, country: country}
+  derived: {goal: goal_usd, duration: duration_days, month: launch_month, year: launch_year,
+            name_words: name_words}
+
+validation:
+  required_columns: [ID, name, category, main_category, country, goal_usd, duration_days, launch_month, launch_year,
+                     name_words]
+  positive_columns: [goal_usd]
+  duration_column: duration_days
+  duration_range: [1, 92]
+  year_column: launch_year
+  launch_year_range: [2009, 2030]
+
+features:
+  numeric: [goal_usd, duration_days, launch_month, launch_year, name_words]
+  log: [goal_usd]
+  categorical: [main_category, category, country]
+  rare_category_minimum: 100
+
+split:
+  test_size: 0.20
+  val_size: 0.20
+  random_state: 42
+  stratify: true
+
+model:
+  type: random_forest              # chosen in the notebook (rule: logit unless >0.01 behind; it was 0.020 behind)
+  params: {n_estimators: 150, max_depth: 20, min_samples_leaf: 20, n_jobs: -1}
+  random_state: 42
+
+evaluation:
+  metric: roc_auc
+  threshold: 0.70
+  direction: higher_is_better
+  probability_cutoff: 0.29         # F1-optimal on validation in the notebook
+  shortlist_share: 0.10
