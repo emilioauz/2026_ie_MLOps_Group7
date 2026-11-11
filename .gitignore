@@ -44,3 +44,4 @@ reports/**
 !reports/
 !reports/README.md
 logs/
+.pytest-tmp/
