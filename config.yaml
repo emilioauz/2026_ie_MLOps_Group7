@@ -28,11 +28,17 @@ cleaning:
   min_goal_usd: 1.0
   min_investable_goal_usd: 10000
   leakage_columns: [pledged, backers, usd pledged, usd_pledged_real]
+  columns: {launched: launched, deadline: deadline, goal: usd_goal_real, name: name, country: country}
+  derived: {goal: goal_usd, duration: duration_days, month: launch_month, year: launch_year,
+            name_words: name_words}
 
 validation:
   required_columns: [ID, name, category, main_category, country, goal_usd, duration_days, launch_month, launch_year,
                      name_words]
+  positive_columns: [goal_usd]
+  duration_column: duration_days
   duration_range: [1, 92]
+  year_column: launch_year
   launch_year_range: [2009, 2030]
 
 features:
