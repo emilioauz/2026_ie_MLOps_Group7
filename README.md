@@ -97,7 +97,7 @@ flake8 --isolated --max-line-length=120 --extend-ignore=E203 src tests  # prints
 pylint src                                                               # 9.5 or more
 radon cc -s -a src                                                       # average A
 detect-secrets scan                                                      # "results": {}
-git ls-files data models logs .env                                       # prints nothing
+git ls-files data models logs .env                                       # prints only the folder README.md files
 ```
 
 Each module in `src/` has a matching `tests/test_<module>.py` with at least two unit tests (one function on tiny
@@ -137,10 +137,10 @@ raise. `tests/test_main.py` runs the whole pipeline on about 100 synthetic rows.
 | Owner | GitHub | Modules and files |
 |---|---|---|
 | Emilio (admin) | [emilioauz](https://github.com/emilioauz) | Team setup (`config.yaml`, `environment.yml`, `TEAM_BRIEF.md`, `AGENTS.md`, `pytest.ini`, `.flake8`), `main.py` |
-| Cedric | | `utils.py`, `load_data.py`, README sections 2–5 |
-| Diajeng | | `clean_data.py`, `validate.py` |
+| Cedric | [Ced9999](https://github.com/Ced9999) | `utils.py`, `load_data.py`, README sections 2–5 |
+| Diajeng | [diajengputri2602](https://github.com/diajengputri2602) | `clean_data.py`, `validate.py` |
 | Arthur | [CaillouMalade](https://github.com/CaillouMalade) | Notebook, `features.py`, `train.py` |
-| Minghao | | README section 1 (business case), `evaluate.py`, `infer.py` |
+| Minghao | [20011011liu-create](https://github.com/20011011liu-create) | README section 1 (business case), `evaluate.py`, `infer.py` |
 
 Each owner also owns the matching test files. All work goes through `feature/<module>` branches and reviewed pull
 requests into `dev`; `dev` merges into `main` once, for the release.

@@ -5,7 +5,7 @@ module (and every AI chat) starts from. Changes go through the admin in a PR.
 
 ## Business and data
 
-Business case: README.md, section 1 (pending: feature/business-case)
+Business case: README.md, section 1
 Use case: an early-stage investor decides which newly launched Kickstarter campaigns to contact first, using the predicted probability of reaching the funding goal
 Notebook: notebooks/Kickstarter_success_Group7.ipynb (frozen)
 Target: success (1 = successful, 0 = failed; other states dropped in training) | Problem type: classification | ID column: ID
@@ -27,10 +27,10 @@ Agreed extra parameters: clean_dataframe(..., *, state_column, training_states, 
 ## Owners (team)
 
 Owners (team): main.py, test_main.py, team setup -> Emilio (emilioauz), feature/main
-Owners (team): utils.py, load_data.py, README sections 2-5 -> Cedric (___), feature/utils, feature/load-data, feature/readme
-Owners (team): clean_data.py, validate.py -> Diajeng (___), feature/clean-data, feature/validate
+Owners (team): utils.py, load_data.py, README sections 2-5 -> Cedric (Ced9999), feature/utils, feature/load-data, feature/readme
+Owners (team): clean_data.py, validate.py -> Diajeng (diajengputri2602), feature/clean-data, feature/validate
 Owners (team): notebook, features.py, train.py -> Arthur (CaillouMalade), feature/notebook, feature/features, feature/train
-Owners (team): README section 1, evaluate.py, infer.py -> Minghao (___), feature/business-case, feature/evaluate, feature/infer
+Owners (team): README section 1, evaluate.py, infer.py -> Minghao (20011011liu-create), feature/business-case, feature/evaluate, feature/infer
 
 Shared rules: feature branches from dev, PR + 1 approval, author merges own PR; conda env from environment.yml;
 pytest and flake8 must pass before every push; entry point: python -m src.main.
